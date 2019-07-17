@@ -1,0 +1,14 @@
+---
+openapi: 3.0.0
+info:
+   version: 1.0.0
+paths:
+   /:
+      post:
+         produces:
+            - application/json
+         responses:
+            200:
+               description: success
+               schema:
+                  $ref: '#/definitions/Empty'

@@ -1,0 +1,22 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+
+
+Description: Bootstrapping resources
+
+
+Resources:
+   LambdaPackagesBucket:
+      Type: AWS::S3::Bucket
+      Properties: {
+         VersioningConfiguration: {
+            Status: Enabled,
+         },
+      }
+
+
+Outputs:
+   Bucket:
+      Description: Name of the S3 bucket to contain Lambda deployment packages.
+      Value:
+         Ref: LambdaPackagesBucket

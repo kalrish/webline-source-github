@@ -1,0 +1,7 @@
+---
+
+template_path: event-installation.yaml
+
+parameters:
+   LambdaPackagesBucket: !stack_output amber/lambda_packages_bucket.yaml::Bucket
+   LambdaFunctionPackageObjectVersion: a673fsd87238943

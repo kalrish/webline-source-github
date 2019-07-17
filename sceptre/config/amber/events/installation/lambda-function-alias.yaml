@@ -1,0 +1,11 @@
+---
+
+template_path: lambda-function-alias.yaml
+
+parameters:
+   AliasName: dfd
+   Alternate: 'no'
+   AlternativeVersion: 1
+   FunctionName: !stack_output amber/events/installation/event-installation.yaml::FunctionName
+   MainVersion: 1
+   RoutingWeight: 0

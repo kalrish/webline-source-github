@@ -1,0 +1,365 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+
+
+Description: GitHub webhook handler
+
+
+Metadata:
+   AWS::CloudFormation::Interface:
+      ParameterGroups:
+         -
+            Label: GitHub
+            Parameters:
+               - GitHubWebhookToken
+         -
+            Label: Lambda package
+            Parameters:
+               - LambdaPackagesBucket
+               - LambdaFunctionPackageObjectVersion
+         -
+            Label: Events bus
+            Parameters:
+               - EventsTopic
+
+      ParameterLabels:
+         GitHubWebhookToken:
+            default: Webhook token
+         LambdaPackagesBucket:
+            default: Bucket
+         LambdaFunctionPackageObjectVersion:
+            default: Object version
+         EventsTopic:
+            default: Topic name
+
+
+Parameters:
+   EventsTopic:
+      Description: Name of the SNS topic to forward GitHub events to.
+      Type: String
+
+   GitHubWebhookToken:
+      Description: Token associated with the GitHub app.
+      Type: String
+      NoEcho: true
+
+   LambdaPackagesBucket:
+      Description: Name of the S3 bucket that contains the Lambda deployment package.
+      Type: String
+
+   LambdaFunctionPackageObjectVersion:
+      Description: ID of the version of the S3 object to use as Lambda deployment package.
+      Type: String
+
+
+Resources:
+   # The GitHub OAuth token is stored in Secrets Manager.
+   # It is encrypted using a custom KMS key. Any code that needs the token
+   # (to call the GitHub API) gets a reference to the secret
+   # and decrypts it, so that the token itself
+   # is not revealed or passed around.
+   GitHubWebhookTokenKey:
+      Type: AWS::KMS::Key
+      Properties: {
+         Description: Protects the GitHub webhook token,
+         Enabled: true,
+         KeyPolicy: {
+            Version: 2012-10-17,
+            Statement: [
+               {
+                  Sid: Creation,
+                  Principal: {
+                     AWS: [
+                        {
+                           'Fn::Sub': 'arn:${AWS::Partition}:iam::${AWS::AccountId}:root',
+                        },
+                     ],
+                  },
+                  Action: [
+                     'kms:CreateKey',
+                  ],
+                  Resource: [
+                     '*',
+                  ],
+                  Effect: Allow,
+               },
+               {
+                  Sid: Administration,
+                  Principal: {
+                     AWS: [
+                        {
+                           'Fn::Sub': 'arn:${AWS::Partition}:iam::${AWS::AccountId}:root',
+                        },
+                     ],
+                  },
+                  Action: [
+                     'kms:CancelKeyDeletion',
+                     'kms:DescribeKey',
+                     'kms:DisableKey',
+                     'kms:DisableKeyRotation',
+                     'kms:EnableKey',
+                     'kms:EnableKeyRotation',
+                     'kms:GetKeyPolicy',
+                     'kms:GetKeyRotationStatus',
+                     'kms:ListKeyPolicies',
+                     'kms:ListResourceTags',
+                     'kms:PutKeyPolicy',
+                     'kms:ScheduleKeyDeletion',
+                     'kms:TagResource',
+                     'kms:UntagResource',
+                     'kms:UpdateKeyDescription',
+                  ],
+                  Resource: [
+                     '*',
+                  ],
+                  Condition: {
+                     StringEquals: {
+                        'kms:CallerAccount': {
+                           Ref: 'AWS::AccountId',
+                        },
+                     }
+                  },
+                  Effect: Allow,
+               },
+               {
+                  Sid: SecretsManager,
+                  Principal: {
+                     AWS: [
+                        {
+                           'Fn::Sub': 'arn:${AWS::Partition}:iam::${AWS::AccountId}:root',
+                        },
+                     ],
+                  },
+                  Action: [
+                     'kms:Decrypt',
+                     'kms:Encrypt',
+                     'kms:GenerateDataKey',
+                  ],
+                  Resource: [
+                     '*',
+                  ],
+                  Condition: {
+                     StringEquals: {
+                        'kms:CallerAccount': {
+                           Ref: 'AWS::AccountId',
+                        },
+                        'kms:ViaService': {
+                           'Fn::Sub': 'secretsmanager.${AWS::Region}.${AWS::URLSuffix}',
+                        },
+                        #kms:EncryptionContext:SecretARN: !Sub 'arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:webpipe-source-github-token-??????'
+                     },
+                  },
+                  Effect: Allow,
+               },
+               # FIXME: circular dependency
+               #{
+               #   Sid: Decryption,
+               #   Principal: {
+               #      AWS: [
+               #         {
+               #            'Fn::GetAtt': [
+               #               FunctionRole,
+               #               Arn,
+               #            ],
+               #         },
+               #      ],
+               #   },
+               #   Action: [
+               #      'kms:Decrypt',
+               #   ],
+               #   Resource: [
+               #      '*',
+               #   ],
+               #   Effect: Allow,
+               #},
+            ],
+         },
+      }
+
+   GitHubWebhookTokenSecret:
+      Type: AWS::SecretsManager::Secret
+      Properties: {
+         KmsKeyId: {
+            'Fn::GetAtt': [
+               GitHubWebhookTokenKey,
+               Arn,
+            ],
+         },
+         SecretString: {
+            Ref: GitHubWebhookToken,
+         },
+      }
+
+   GitHubWebhookTokenSecretPolicy:
+      Type: AWS::SecretsManager::ResourcePolicy
+      Properties: {
+         SecretId: {
+            Ref: GitHubWebhookTokenSecret,
+         },
+         ResourcePolicy: {
+            Version: 2012-10-17,
+            Statement: [
+               {
+                  Sid: Set,
+                  Principal: {
+                     AWS: [
+                        {
+                           'Fn::Sub': 'arn:${AWS::Partition}:iam::${AWS::AccountId}:root',
+                        },
+                     ],
+                  },
+                  Action: [
+                     'secretsmanager:PutSecretValue',
+                  ],
+                  Resource: [
+                     '*',
+                  ],
+                  Effect: Allow,
+               },
+               {
+                  Sid: Get,
+                  Principal: {
+                     AWS: [
+                        {
+                           'Fn::GetAtt': [
+                              FunctionRole,
+                              Arn,
+                           ],
+                        },
+                     ],
+                  },
+                  Action: [
+                     'secretsmanager:GetSecretValue',
+                  ],
+                  Resource: [
+                     '*',
+                  ],
+                  Effect: Allow,
+               },
+            ],
+         },
+      }
+
+   FunctionRole:
+      Type: AWS::IAM::Role
+      Properties: {
+         AssumeRolePolicyDocument: {
+            Version: 2012-10-17,
+            Statement: [
+               {
+                  Principal: {
+                     Service: [
+                        {
+                           'Fn::Sub': 'lambda.${AWS::URLSuffix}',
+                        },
+                     ],
+                  },
+                  Action: [
+                     'sts:AssumeRole',
+                  ],
+                  Effect: Allow,
+               },
+            ],
+         },
+         Policies: [
+            {
+               PolicyName: secrets,
+               PolicyDocument: {
+                  Version: 2012-10-17,
+                  Statement: [
+                     {
+                        Action: [
+                           'secretsmanager:GetSecretValue',
+                        ],
+                        Resource: [
+                           {
+                              'Fn::Sub': '${GitHubWebhookTokenSecret}-??????',
+                           },
+                        ],
+                        Effect: Allow,
+                     },
+                  ],
+               },
+            },
+            {
+               PolicyName: event-bus,
+               PolicyDocument: {
+                  Version: 2012-10-17,
+                  Statement: [
+                     {
+                        Action: [
+                           'sns:Publish',
+                        ],
+                        Resource: [
+                           {
+                              'Fn::Sub': 'arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:${EventsTopic}',
+                           },
+                        ],
+                        Effect: Allow,
+                     },
+                  ],
+               },
+            },
+         ],
+         ManagedPolicyArns: [
+            {
+               'Fn::Sub': 'arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole',
+            },
+         ],
+      }
+
+   Function:
+      Type: AWS::Lambda::Function
+      #DependsOn:
+      #   - LambdaLogsPolicy
+      Properties: {
+         Code: {
+            S3Bucket: {
+               Ref: LambdaPackagesBucket,
+            },
+            S3Key: functions/webhook.zip,
+         },
+         Environment: {
+            Variables: {
+               EVENTS_TOPIC: {
+                  'Fn::Sub': 'arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:${EventsTopic}',
+               },
+               GITHUB_TOKEN_SECRET: {
+                  Ref: GitHubWebhookTokenSecret,
+               },
+            },
+         },
+         Handler: index.handler,
+         Role: {
+            'Fn::GetAtt': [
+               FunctionRole,
+               Arn,
+            ]
+         },
+         Runtime: ruby2.5,
+      }
+
+   FunctionPermission:
+      Type: AWS::Lambda::Permission
+      Properties: {
+         Principal: {
+            'Fn::Sub': 'apigateway.${AWS::URLSuffix}',
+         },
+         SourceAccount: {
+            Ref: 'AWS::AccountId',
+         },
+         # FIXME: WebhookAPI is not known
+         SourceArn: {
+            #'Fn::Sub': 'arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${WebhookAPI}/*/*/${WebhookFunction}',
+            #'Fn::Sub': 'arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${WebhookAPI}/${WebhookStage}/POST/*',
+            'Fn::Sub': 'arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:*/*/*/${Function}',
+         },
+         Action: [
+            'lambda:InvokeFunction',
+         ],
+         FunctionName: {
+            # FIXME
+            #Ref: FunctionAlias,
+            Ref: Function,
+         },
+      }

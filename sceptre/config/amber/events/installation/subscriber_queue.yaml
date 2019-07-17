@@ -1,0 +1,6 @@
+---
+
+template_path: subscriber_queue.yaml
+
+parameters:
+   Topic: !stack_output amber/event_bus.yaml::Topic

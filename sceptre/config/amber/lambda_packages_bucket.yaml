@@ -1,0 +1,7 @@
+---
+
+template_path: lambda_packages_bucket.yaml
+
+#hooks:
+#   after_create:
+#      - !cmd echo !stack_output lambda_packages_bucket.yaml::LambdaPackagesBucket

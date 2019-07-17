@@ -1,0 +1,97 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+
+
+Description: Consumer queue
+
+
+Metadata:
+   AWS::CloudFormation::Interface:
+      ParameterGroups:
+         -
+            Label: SNS
+            Parameters:
+               - Topic
+
+      ParameterLabels:
+         Topic:
+            default: Topic name
+
+
+Parameters:
+   Topic:
+      Description: Name of the SNS topic to subscribe to.
+      Type: String
+
+
+Resources:
+   Queue:
+      Type: AWS::SQS::Queue
+      Properties: {
+      }
+
+   # For an SNS topic to be able to send messages to a queue, a policy must be set on the queue
+   # that allows the Amazon SNS topic to perform the sqs:SendMessage action.
+   Policy:
+      Type: AWS::SQS::QueuePolicy
+      Properties: {
+         Queues: [
+            {
+               Ref: Queue,
+            },
+         ],
+         PolicyDocument: {
+            Id: Lalala,
+            Version: 2012-10-17,
+            Statement: [
+               {
+                  Sid: Post,
+                  Principal: '*',
+                  Action: [
+                     'sqs:SendMessage',
+                  ],
+                  Resource: [
+                     {
+                        'Fn::GetAtt': [
+                           Queue,
+                           Arn,
+                        ],
+                     },
+                  ],
+                  Condition: {
+                     ArnEquals: {
+                        'aws:SourceArn': {
+                           'Fn::Sub': 'arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:${Topic}',
+                        },
+                     },
+                  },
+                  Effect: Allow,
+               },
+            ],
+         },
+      }
+
+   Subscription:
+      Type: AWS::SNS::Subscription
+      Properties: {
+         TopicArn: {
+            'Fn::Sub': 'arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:${Topic}',
+         },
+         Protocol: sqs,
+         Endpoint: {
+            'Fn::GetAtt': [
+               Queue,
+               Arn,
+            ],
+         },
+         RawMessageDelivery: true,
+      }
+
+
+Outputs:
+   Queue:
+      Description: Name of the queue.
+      Value:
+         Fn::GetAtt:
+            - Queue
+            - QueueName

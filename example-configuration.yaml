@@ -1,0 +1,11 @@
+---
+aws:
+   account: 'ACCOUNT_ID' # as string
+   partition: aws # must be the global partition
+   role: ROLE_NAME
+   cloudformation:
+      stack:
+         pipeline:
+            name-template: www-%(repository)-pipeline
+         hosting:
+            name-template: www-%(repository)

@@ -1,0 +1,19 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+
+
+Description: GitHub events bus
+
+
+Resources:
+   Topic:
+      Type: AWS::SNS::Topic
+      Properties: {
+      }
+
+
+Outputs:
+   Topic:
+      Description: Name of the SNS topic.
+      Value:
+         Ref: Topic

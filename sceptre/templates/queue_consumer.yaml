@@ -1,0 +1,56 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+
+
+Description: Queue consumer
+
+
+Metadata:
+   AWS::CloudFormation::Interface:
+      ParameterGroups:
+         -
+            Label: SQS
+            Parameters:
+               - Queue
+         -
+            Label: Lambda
+            Parameters:
+               - FunctionName
+               - FunctionAlias
+
+      ParameterLabels:
+         FunctionAlias:
+            default: Function alias
+         FunctionName:
+            default: Function name
+         Queue:
+            default: Queue name
+
+
+Parameters:
+   FunctionAlias:
+      Description: Name of the Lambda function alias.
+      Type: String
+
+   FunctionName:
+      Description: Name of the Lambda function.
+      Type: String
+
+   Queue:
+      Description: Name of the SQS queue to consume from.
+      Type: String
+
+
+Resources:
+   Mapping:
+      Type: AWS::Lambda::EventSourceMapping
+      Properties: {
+         EventSourceArn: {
+            'Fn::Sub': 'arn:${AWS::Partition}:sqs:${AWS::Region}:${AWS::AccountId}:${Queue}',
+         },
+         FunctionName: {
+            'Fn::Sub': 'arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${FunctionName}:${FunctionAlias}',
+         },
+         BatchSize: 1,
+         Enabled: true,
+      }

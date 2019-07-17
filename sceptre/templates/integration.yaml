@@ -1,0 +1,149 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+
+
+Description: 'webpipe source integration for GitHub'
+
+
+Metadata:
+   AWS::CloudFormation::Interface:
+      ParameterGroups:
+         -
+            Label: Artifacts
+            Parameters:
+               - LambdaPackagesBucket
+               - VersionLambdaFunctionWebhook
+               - VersionLambdaLayerOctokit
+
+      ParameterLabels:
+         LambdaPackagesBucket:
+            default: Lambda packages bucket
+
+
+Parameters:
+   LambdaPackagesBucket:
+      Description: Name of the S3 bucket that contains Lambda deployment packages.
+      Type: String
+
+
+Resources:
+   # To use the GitHub API, all Lambda functions use Octokit.rb,
+   # the official Ruby toolkit. In order to avoid duplicating it
+   # in each Lambda function's code package, we put it in a layer.
+   OctokitLibrary:
+      Type: AWS::Lambda::LayerVersion
+      Properties: {
+         LayerName: {
+            Ref: 'AWS::StackName',
+         },
+         Description: octokit.rb,
+         CompatibleRuntimes: [
+            ruby2.5,
+         ],
+         Content: {
+            S3Bucket: {
+               Ref: LambdaPackagesBucket,
+            },
+            S3Key: layers/octokit.zip,
+         },
+      }
+
+   PipelineStackNotificationFunction:
+      Type: AWS::Lambda::Function
+      Properties: {
+         Code: {
+            S3Bucket: {
+               Ref: LambdaPackagesBucket,
+            },
+            S3Key: functions/pipeline_stack_notifications.zip,
+         },
+         Environment: {
+            Variables: {
+               GITHUB_TOKEN_SECRET: {
+                  Ref: GitHubTokenSecret,
+               },
+            },
+         },
+         Handler: index.handler,
+         Layers: [
+            {
+               Ref: OctokitLibrary,
+            },
+         ],
+         Role: {
+            'Fn::GetAtt': [
+               WebhookRole,
+               Arn,
+            ]
+         },
+         Runtime: ruby2.5,
+      }
+
+   StatusRole:
+      Type: AWS::IAM::Role
+      Properties: {
+         AssumeRolePolicyDocument: {
+            Version: 2012-10-17,
+            Statement: [
+               {
+                  Principal: {
+                     Service: [
+                        {
+                           'Fn::Sub': 'lambda.${AWS::URLSuffix}',
+                        },
+                     ],
+                  },
+                  Action: [
+                     'sts:AssumeRole',
+                  ],
+                  Effect: Allow,
+               },
+            ],
+         },
+         ManagedPolicies: [
+         ],
+      }
+   # The status function posts status updates to GitHub
+   # after 
+   StatusFunction:
+      Type: AWS::Lambda::Function
+      Properties: {
+         Code: {
+            S3Bucket: {
+               Ref: LambdaPackagesBucket,
+            },
+            S3Key: functions/pipeline_status.zip,
+         },
+         Environment: {
+            Variables: {
+               GITHUB_TOKEN_SECRET: {
+                  Ref: GitHubTokenSecret,
+               },
+            },
+         },
+         Layers: [
+            {
+               Ref: OctokitLibrary,
+            },
+         ],
+         Role: {
+            'Fn::GetAtt': [
+               StatusRole,
+               Arn,
+            ],
+         },
+         Runtime: ruby2.5,
+      }
+   StatusPermission:
+      Type: AWS::Lambda::Permission
+      Properties: {
+         Principal: {
+            'Fn::Sub': 'events.${AWS::URLSuffix}',
+         },
+         Action: [
+            'lambda:InvokeFunction',
+         ],
+         FunctionName: {
+            Ref: StatusFunction,
+         },
+      }

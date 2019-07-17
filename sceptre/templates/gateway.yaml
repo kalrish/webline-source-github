@@ -1,0 +1,103 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+
+
+Description: HTTP endpoint
+
+
+Parameters:
+   LambdaFunctionAlias:
+      Description: Name of the Lambda function alias to associate with the webhook.
+      Type: String
+
+   LambdaFunctionName:
+      Description: Name of the Lambda function to associate with the webhook.
+      Type: String
+
+
+Resources:
+   Api:
+      Type: AWS::ApiGateway::RestApi
+      Properties: {
+         Name: webpipe-github-webhook,
+         Description: GitHub webhook for webpipe,
+      }
+
+   RequestValidator:
+      Type: AWS::ApiGateway::RequestValidator
+      Properties: {
+         RestApiId: {
+            Ref: Api,
+         },
+         ValidateRequestBody: false,
+         ValidateRequestParameters: true,
+      }
+
+   Method:
+      Type: AWS::ApiGateway::Method
+      Properties: {
+         RestApiId: {
+            Ref: Api,
+         },
+         ResourceId: {
+            'Fn::GetAtt': [
+               Api,
+               RootResourceId,
+            ],
+         },
+         AuthorizationType: NONE,
+         HttpMethod: POST,
+         RequestParameters: {
+            method.request.header.X-GitHub-Event: true,
+            method.request.header.X-Hub-Signature: true,
+         },
+         RequestValidatorId: {
+            Ref: RequestValidator,
+         },
+         Integration: {
+            Type: AWS_PROXY,
+            IntegrationHttpMethod: POST,
+            Uri: {
+               'Fn::Sub': 'arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${LambdaFunctionName}:${LambdaFunctionAlias}/invocations',
+            },
+         },
+      }
+
+   Deployment:
+      DependsOn:
+         - Method
+      Type: AWS::ApiGateway::Deployment
+      Properties: {
+         RestApiId: {
+            Ref: Api,
+         },
+         StageName: webhook,
+         Description: blah,
+         StageDescription: {
+         },
+         DeploymentCanarySettings: {
+         }
+      }
+
+   Stage:
+      Type: AWS::ApiGateway::Stage
+      Properties: {
+         RestApiId: {
+            Ref: Api,
+         },
+         DeploymentId: {
+            Ref: Deployment,
+         },
+      }
+
+
+Outputs:
+   ApiId:
+      Description: ID of the API Gateway REST API.
+      Value:
+         Ref: Api
+   Url:
+      Description: URL of the webhook for GitHub.
+      Value:
+         # FIXME: don't hardcode StageName
+         Fn::Sub: https://${Api}.execute-api.${AWS::Region}.${AWS::URLSuffix}/webhook

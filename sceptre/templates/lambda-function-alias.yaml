@@ -1,0 +1,123 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+
+
+Description: Lambda function alias
+
+
+Metadata:
+   AWS::CloudFormation::Interface:
+      ParameterGroups:
+         -
+            Label: General
+            Parameters:
+               - FunctionName
+               - AliasName
+               - Alternate
+         -
+            Label: Main function
+            Parameters:
+               - MainVersion
+         -
+            Label: Alternative function
+            Parameters:
+               - AlternativeVersion
+               - RoutingWeight
+
+      ParameterLabels:
+         Alternate:
+            default: Enable traffic switching?
+         AlternativeVersion:
+            default: Function version
+         FunctionName:
+            default: Function name
+         MainVersion:
+            default: Function version
+         RoutingWeight:
+            default: Routing weight
+
+
+Parameters:
+   AliasName:
+      Description: Name of the Lambda function alias.
+      Type: String
+      Default: alias
+
+   Alternate:
+      Description: Whether to switch traffic between two function versions proportionally.
+      Type: String
+      AllowedValues:
+         - 'no'
+         - 'yes'
+      Default: 'no'
+
+   AlternativeVersion:
+      Description: Version of the alternative Lambda function to route traffic to.
+      Type: Number
+      MinValue: 1
+
+   FunctionName:
+      Description: Name of the Lambda function to which to point the alias.
+      Type: String
+
+   MainVersion:
+      Description: Version of the main Lambda function to which to point the alias.
+      Type: Number
+      MinValue: 1
+
+   RoutingWeight:
+      Description: Percentage of traffic to route to the alternative function version.
+      Type: Number
+      MinValue: 0
+      MaxValue: 100
+      Default: 0
+
+
+Conditions:
+   AlternationEnabled:
+      Fn::Equals:
+         - Alternate
+         - 'yes'
+
+
+Resources:
+   Alias:
+      Type: AWS::Lambda::Alias
+      Properties: {
+         Name: {
+            Ref: AliasName,
+         },
+         FunctionName: {
+            Ref: FunctionName,
+         },
+         FunctionVersion: {
+            Ref: MainVersion,
+         },
+         RoutingConfig: {
+            'Fn::If': [
+               AlternationEnabled,
+               {
+                  AdditionalVersionWeights: [
+                     {
+                        FunctionVersion: {
+                           Ref: AlternativeVersion,
+                        },
+                        FunctionWeight: {
+                           Ref: RoutingWeight,
+                        },
+                     },
+                  ],
+               },
+               {
+                  Ref: 'AWS::NoValue',
+               },
+            ],
+         },
+      }
+
+
+Outputs:
+   Alias:
+      Description: ARN of the Lambda function alias.
+      Value:
+         Ref: Alias
