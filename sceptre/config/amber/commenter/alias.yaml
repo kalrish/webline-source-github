@@ -6,6 +6,6 @@ parameters:
    AliasName: dfd
    Alternate: 'no'
    AlternativeVersion: 1
-   FunctionName: !stack_output amber/events/installation/event-installation.yaml::FunctionName
+   FunctionName: !stack_output amber/commenter/function.yaml::FunctionName
    MainVersion: 1
    RoutingWeight: 0

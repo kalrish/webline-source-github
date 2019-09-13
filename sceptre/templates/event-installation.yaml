@@ -173,6 +173,7 @@ Resources:
             #   Ref: OctokitLibrary,
             #},
          ],
+         MemorySize: '128',
          Role: {
             'Fn::GetAtt': [
                FunctionRole,

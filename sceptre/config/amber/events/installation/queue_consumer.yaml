@@ -3,6 +3,6 @@
 template_path: queue_consumer.yaml
 
 parameters:
-   FunctionAlias: !stack_output amber/events/installation/event-installation.yaml::Alias
-   FunctionName: !stack_output amber/events/installation/event-installation.yaml::Name
+   FunctionAlias: !stack_output amber/events/installation/alias.yaml::Alias
+   FunctionName: !stack_output amber/events/installation/function.yaml::Name
    Queue: !stack_output amber/events/installation/subscriber_queue.yaml::Queue

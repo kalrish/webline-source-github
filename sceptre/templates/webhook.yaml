@@ -330,6 +330,7 @@ Resources:
             },
          },
          Handler: index.handler,
+         MemorySize: '128',
          Role: {
             'Fn::GetAtt': [
                FunctionRole,
