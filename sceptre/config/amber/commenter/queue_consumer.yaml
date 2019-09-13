@@ -1,0 +1,8 @@
+---
+
+template_path: queue_consumer.yaml
+
+parameters:
+   FunctionAlias: !stack_output amber/commenter/alias.yaml::Alias
+   FunctionName: !stack_output amber/commenter/function.yaml::Name
+   Queue: !stack_output amber/commenter/queue.yaml::Queue
