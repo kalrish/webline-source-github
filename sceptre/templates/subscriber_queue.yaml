@@ -41,7 +41,7 @@ Resources:
             },
          ],
          PolicyDocument: {
-            Id: Lalala,
+            Id: Post,
             Version: 2012-10-17,
             Statement: [
                {
