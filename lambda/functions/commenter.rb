@@ -1,9 +1,16 @@
+require 'json'
 require 'octokit'
 
 
-def send(message:, number:, owner:, repo:)
+def send(data:)
+  message = data['message']
+  number = data['number']
+  owner = data['owner']
+  repo = data['repo']
+
   path = "#{owner}/#{repo}"
 
+  # FIXME: make sure that add_comment throws if it fails
   Octokit.add_comment(
     path,
     number,
@@ -15,19 +22,11 @@ end
 def handler(event:, context:)
   record = event['records'][0]
 
-  message = record['message']
-  number = record['number']
-  owner = record['owner']
-  repo = record['repo']
-
-  send(
-    message: message,
-    number: number,
-    owner: owner,
-    repo: repo,
+  data = JSON.parse(
+    record,
   )
 
-  response = Null
-
-  return response
+  send(
+    data: data,
+  )
 end
