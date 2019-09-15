@@ -27,11 +27,13 @@ end
 
 
 def notify_github(result:)
-  # Changeset empty
-  message = 'Pipeline triggered.'
-
-  # Changeset not empty
-  message = ''
+  if result == 'CREATING'
+    message = 'The pipeline is being created.'
+  elsif result == 'UPDATING'
+    message = 'The pipeline is being updated.'
+  elsif result == 'PENDING'
+    message = 'The pipeline is already being updated. The latest changes have been enqueued and will be carried out afte the current update finishes.'
+  end
 
   call_integration_github_commenter(
     message: message,
