@@ -57,7 +57,9 @@ def process_event(event_data)
     repository: repository,
   )
 
-  result = call_core_pipeline_deployer()
+  config = invoke_core_config_parser()
+
+  result = invoke_core_pipeline_manager()
 
   notify_github_inprogress(
     result: result,
