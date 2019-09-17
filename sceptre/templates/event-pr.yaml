@@ -137,11 +137,12 @@ Resources:
             Ref: EventsTopic,
          },
          FilterPolicy: {
-            event: [
+            Event: [
                # FIXME
                InstallationEvent,
                RepositoryInstallationEvent,
             ],
+            Valid: 1,
          },
          Protocol: lambda,
          Endpoint: {

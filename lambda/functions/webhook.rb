@@ -50,10 +50,47 @@ def signature_valid?(computed:, received:)
 end
 
 
-def main(body:, events_topic:, github_token_secret:, headers:)
-  received_signature = headers['X-Hub-Signature']
+def forward(body:, event:, topic:, valid?:)
+  sns = Aws::SNS::Client.new()
 
-  if received_signature
+  message_attributes = {}
+
+  if event
+    message_attributes['Event'] = {
+      'data_type' => 'String',
+      'string_value' => event,
+    }
+  end
+
+  message_attributes['Valid'] = {
+    'data_type' => 'Binary',
+    'binary_value' => valid?,
+  }
+
+  sns.publish(
+    {
+      topic_arn: events_topic,
+      message: body,
+      message_attributes: message_attributes,
+    },
+  )
+
+  return
+end
+
+
+def main(body:, events_topic:, github_token_secret:, headers:)
+  begin
+    received_signature = headers.fetch(
+      'X-Hub-Signature',
+    )
+
+    event_name = headers.fetch(
+      'X-GitHub-Event',
+    )
+  rescue KeyError
+    status_code = Net::HTTPBadRequest
+  else
     github_token = get_github_token(
       github_token_secret,
     )
@@ -69,29 +106,16 @@ def main(body:, events_topic:, github_token_secret:, headers:)
     )
 
     if signature_validity
-      event_name = headers['X-GitHub-Event']
-
-      sns = Aws::SNS::Client.new()
-
-      sns.publish(
-        {
-          topic_arn: events_topic,
-          message: body,
-          message_attributes: {
-            'String' => {
-              data_type: 'String',
-              event: event_name,
-            },
-          },
-        },
-      )
-
       status_code = Net::HTTPAccepted
     else
       status_code = Net::HTTPUnauthorized
     end
-  else
-    status_code = Net::HTTPUnauthorized
+  ensure
+    forward(
+      body: body,
+      event: event_name,
+      topic: events_topic,
+    )
   end
 
   return status_code
