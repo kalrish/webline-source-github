@@ -87,11 +87,7 @@ Resources:
             Statement: [
                {
                   Principal: {
-                     Service: [
-                        {
-                           'Fn::Sub': 'lambda.${AWS::URLSuffix}',
-                        },
-                     ],
+                     Service: lambda.amazonaws.com,
                   },
                   Action: [
                      'sts:AssumeRole',
@@ -137,9 +133,7 @@ Resources:
    StatusPermission:
       Type: AWS::Lambda::Permission
       Properties: {
-         Principal: {
-            'Fn::Sub': 'events.${AWS::URLSuffix}',
-         },
+         Principal: events.amazonaws.com,
          Action: [
             'lambda:InvokeFunction',
          ],

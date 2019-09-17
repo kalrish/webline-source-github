@@ -248,11 +248,7 @@ Resources:
             Statement: [
                {
                   Principal: {
-                     Service: [
-                        {
-                           'Fn::Sub': 'lambda.${AWS::URLSuffix}',
-                        },
-                     ],
+                     Service: lambda.amazonaws.com,
                   },
                   Action: [
                      'sts:AssumeRole',
@@ -343,9 +339,7 @@ Resources:
    FunctionPermission:
       Type: AWS::Lambda::Permission
       Properties: {
-         Principal: {
-            'Fn::Sub': 'apigateway.${AWS::URLSuffix}',
-         },
+         Principal: apigateway.amazonaws.com,
          SourceAccount: {
             Ref: 'AWS::AccountId',
          },
